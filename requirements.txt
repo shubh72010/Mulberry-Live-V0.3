@@ -1,0 +1,4 @@
+Flask==2.x.x
+requests==2.x.x
+flask-cors==3.x.x
+gunicorn==20.x.x
