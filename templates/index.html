@@ -5,67 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mulberry-AI</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
-            padding: 20px;
-        }
-
-        .chat-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            height: 400px;
-            overflow-y: scroll;
-        }
-
-        .chat-box {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .user-msg, .ai-msg {
-            padding: 10px;
-            margin: 5px;
-            border-radius: 5px;
-            max-width: 80%;
-        }
-
-        .user-msg {
-            background-color: #e1bee7;
-            align-self: flex-end;
-        }
-
-        .ai-msg {
-            background-color: #d1c4e9;
-            align-self: flex-start;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-
-        button {
-            padding: 10px;
-            margin-top: 10px;
-            background-color: #7b1fa2;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #9c4dcc;
-        }
+        /* Your existing CSS here */
     </style>
 </head>
 <body>
@@ -95,7 +35,7 @@
             addMessage(message, 'user');
             userInput.value = ""; // Clear input field
 
-            fetch('https://your-backend-url-here.com/chat', {  // Update this URL to your actual backend
+            fetch('https://mulberry-live-v0-3.onrender.com/chat', {  // Corrected backend URL
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
