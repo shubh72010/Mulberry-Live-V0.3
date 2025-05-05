@@ -21,15 +21,23 @@ form.addEventListener("submit", async (e) => {
   typingIndicator.style.display = "block";
 
   try {
-    const response = await fetch("https://your-render-url.onrender.com/chat", {
+    const response = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message })
     });
 
     const data = await response.json();
-    addMessage(data.reply || "No response", "ai");
+    const reply = data.reply || "No response.";
+    addMessage(reply, "ai");
+
+    // Optional: Text-to-speech
+    const speech = new SpeechSynthesisUtterance(reply);
+    speech.lang = "en-US";
+    window.speechSynthesis.speak(speech);
+
   } catch (err) {
+    console.error("Error talking to AI:", err);
     addMessage("Failed to get AI response.", "ai");
   } finally {
     typingIndicator.style.display = "none";
