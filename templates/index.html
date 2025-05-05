@@ -1,67 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mulberry-AI</title>
-    <style>
-        /* Your existing CSS here */
-    </style>
+  <meta charset="UTF-8">
+  <title>Mulberry-AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
+  <div class="chat-container">
+    <div id="chat-box"></div>
+    <div id="typing-indicator">Typing...</div>
+    <form onsubmit="handleSubmit(event)">
+      <input type="text" id="user-input" placeholder="Type your message..." required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
 
-    <div class="chat-container">
-        <div id="chat-box" class="chat-box"></div>
-        <input type="text" id="user-input" placeholder="Type a message..." />
-        <button onclick="sendMessage()">Send</button>
-    </div>
+  <script>
+    const chatBox = document.getElementById('chat-box');
+    const input = document.getElementById('user-input');
+    const typing = document.getElementById('typing-indicator');
 
-    <script>
-        const chatBox = document.getElementById('chat-box');
-        const userInput = document.getElementById('user-input');
+    function addMessage(msg, type) {
+      const div = document.createElement('div');
+      div.className = 'message ' + type;
+      div.textContent = msg;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
 
-        function addMessage(message, type) {
-            const msgDiv = document.createElement('div');
-            msgDiv.classList.add(type === 'user' ? 'user-msg' : 'ai-msg');
-            msgDiv.innerText = message;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight; // Auto scroll to bottom
-        }
+    function handleSubmit(e) {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, 'user');
+      input.value = '';
+      typing.style.display = 'block';
 
-        function sendMessage() {
-            const message = userInput.value.trim();
-            if (message === "") return;
-
-            addMessage(message, 'user');
-            userInput.value = ""; // Clear input field
-
-            fetch('https://mulberry-live-v0-3.onrender.com/chat', {  // Corrected backend URL
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ message })
-            })
-            .then(response => response.json())
-            .then(data => {
-                const aiReply = data.reply;
-                addMessage(aiReply, 'ai');
-                speak(aiReply); // Text to speech
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                addMessage("Sorry, there was an error.", 'ai');
-            });
-        }
-
-        function speak(text) {
-            const speech = new SpeechSynthesisUtterance();
-            speech.text = text;
-            speech.lang = 'en-US';
-            speech.rate = 1;
-            window.speechSynthesis.speak(speech);
-        }
-    </script>
-
+      fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      })
+        .then(res => res.json())
+        .then(data => {
+          typing.style.display = 'none';
+          addMessage(data.reply, 'ai');
+        })
+        .catch(err => {
+          typing.style.display = 'none';
+          addMessage('Error talking to AI', 'ai');
+        });
+    }
+  </script>
 </body>
 </html>
