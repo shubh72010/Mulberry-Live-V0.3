@@ -1,12 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import requests
 import os
 
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests from frontend
+CORS(app)
 
-@app.route("/chat", methods=["POST"])
+@app.route('/')
+def index():
+    return render_template('index.html')  # Renders your frontend page
+
+@app.route('/chat', methods=['POST'])
 def chat():
     user_message = request.json.get("message", "")
     headers = {
@@ -29,5 +33,5 @@ def chat():
 
     return jsonify({"reply": reply})
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=False)  # Ensure correct port and host
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
