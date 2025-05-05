@@ -1,37 +1,32 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-import requests
-import os
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+import torch
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
+# Load GPT-Neo
+tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-1.3B")
+model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-1.3B")
+generate = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
+
+@app.route("/")
 def index():
-    return render_template('index.html')  # Renders your frontend page
+    return render_template("index.html")
 
-@app.route('/chat', methods=['POST'])
+@app.route("/chat", methods=["POST"])
 def chat():
-    user_message = request.json.get("message", "")
-    headers = {
-        "Authorization": f"Bearer {os.getenv('HF_TOKEN')}"
-    }
-    data = {
-        "inputs": user_message
-    }
+    data = request.get_json()
+    user_message = data.get("message", "")
 
-    try:
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium",
-            headers=headers,
-            json=data
-        )
-        result = response.json()
-        reply = result[0]['generated_text'] if isinstance(result, list) else "Sorry, no reply."
-    except Exception as e:
-        reply = "Error talking to AI."
+    prompt = f"User: {user_message}\nAI:"
+    response = generate(prompt, max_length=100, do_sample=True, temperature=0.9, top_p=0.95, pad_token_id=tokenizer.eos_token_id)[0]["generated_text"]
+    
+    # Extract only AI part
+    ai_reply = response.split("AI:")[-1].strip().split("\n")[0]
 
-    return jsonify({"reply": reply})
+    return jsonify({"response": ai_reply})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True)
