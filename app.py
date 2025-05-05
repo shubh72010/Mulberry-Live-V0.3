@@ -6,6 +6,10 @@ import os
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from frontend
 
+@app.route("/", methods=["GET"])
+def index():
+    return "Mulberry API is live!"
+
 @app.route("/chat", methods=["POST"])
 def chat():
     user_message = request.json.get("message", "")
@@ -25,9 +29,10 @@ def chat():
         result = response.json()
         reply = result[0]['generated_text'] if isinstance(result, list) else "Sorry, no reply."
     except Exception as e:
+        print("Error:", e)
         reply = "Error talking to AI."
 
     return jsonify({"reply": reply})
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=False)  # Production settings
+    app.run(host='0.0.0.0', port=5000, debug=False)
