@@ -1,25 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mulberry-AI</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mulberry-AI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            padding: 20px;
+        }
+
+        .chat-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            height: 400px;
+            overflow-y: scroll;
+        }
+
+        .chat-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-msg, .ai-msg {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+
+        .user-msg {
+            background-color: #e1bee7;
+            align-self: flex-end;
+        }
+
+        .ai-msg {
+            background-color: #d1c4e9;
+            align-self: flex-start;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #7b1fa2;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #9c4dcc;
+        }
+    </style>
 </head>
 <body>
-  <div id="particles-js"></div>
 
-  <div class="chat-container">
-    <h1>Mulberry-AI</h1>
-    <div id="chat-box"></div>
-    <div id="typing-indicator">AI is typing...</div>
-    <form id="chat-form">
-      <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" required/>
-      <button type="submit">Send</button>
-    </form>
-  </div>
+    <div class="chat-container">
+        <div id="chat-box" class="chat-box"></div>
+        <input type="text" id="user-input" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+    </div>
 
-  <script src="https://cdn.jsdelivr.net/gh/VincentGarreau/particles.js/particles.js"></script>
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+
+        function addMessage(message, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add(type === 'user' ? 'user-msg' : 'ai-msg');
+            msgDiv.innerText = message;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto scroll to bottom
+        }
+
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === "") return;
+
+            addMessage(message, 'user');
+            userInput.value = ""; // Clear input field
+
+            fetch('https://your-backend-url-here.com/chat', {  // Update this URL to your actual backend
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const aiReply = data.reply;
+                addMessage(aiReply, 'ai');
+                speak(aiReply); // Text to speech
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                addMessage("Sorry, there was an error.", 'ai');
+            });
+        }
+
+        function speak(text) {
+            const speech = new SpeechSynthesisUtterance();
+            speech.text = text;
+            speech.lang = 'en-US';
+            speech.rate = 1;
+            window.speechSynthesis.speak(speech);
+        }
+    </script>
+
 </body>
 </html>
