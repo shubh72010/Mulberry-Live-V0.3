@@ -11,13 +11,12 @@ import sys
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Set model names
-MODEL_PRIMARY = "distilbert-base-uncased"  # DistilBERT
-MODEL_FALLBACK = "meta-llama/Llama-2-7b-chat-hf"  # LLaMA 2-7B
+# Models
+MODEL_PRIMARY = "deepseek-ai/deepseek-coder-6.7b-instruct"
+MODEL_FALLBACK = "mistralai/Mistral-7B-Instruct-v0.2"
 
-# Set HuggingFace token
 HF_TOKEN = os.getenv("HF_API_KEY")
-RETRY_INTERVAL = 120  # seconds (2 minutes)
+RETRY_INTERVAL = 120  # Retry every 2 minutes
 
 model = None
 tokenizer = None
@@ -26,8 +25,9 @@ current_model = None
 
 def load_model(model_name):
     global model, tokenizer, model_loaded, current_model
+
     if not HF_TOKEN:
-        print("ERROR: HF_API_KEY environment variable is not set.")
+        print("ERROR: Hugging Face token not set in env.")
         model_loaded = False
         return
 
@@ -37,29 +37,29 @@ def load_model(model_name):
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             token=HF_TOKEN,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             device_map="auto"
         )
         model_loaded = True
         current_model = model_name
         print(f"Model {model_name} loaded successfully.")
     except Exception as e:
-        print(f"Model load failed for {model_name}: {str(e)}")
+        print(f"Failed to load {model_name}: {e}")
         model_loaded = False
 
 def background_model_reload():
     while True:
         if not model_loaded:
             print("Retrying model load...")
-            load_model(MODEL_PRIMARY)  # Try to load the primary model
+            load_model(MODEL_PRIMARY)
             if not model_loaded:
-                print("Switching to fallback model...")
-                load_model(MODEL_FALLBACK)  # Fallback to a heavier model
+                print("Falling back to backup model...")
+                load_model(MODEL_FALLBACK)
         time.sleep(RETRY_INTERVAL)
 
-# Graceful shutdown handler
+# Graceful shutdown
 def signal_handler(sig, frame):
-    print("Shutting down gracefully...")
+    print("Shutting down...")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -76,25 +76,28 @@ def chat():
         return jsonify({"reply": "Please enter a message."})
 
     if not model_loaded:
-        return jsonify({"reply": "Model is currently unavailable. Please try again later."})
+        return jsonify({"reply": "Model is loading or unavailable. Try again soon."})
 
     try:
-        inputs = tokenizer.encode(user_input, return_tensors="pt").to(model.device)
-        outputs = model.generate(inputs, max_length=100, pad_token_id=tokenizer.eos_token_id)
+        inputs = tokenizer(user_input, return_tensors="pt").to(model.device)
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=256,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            pad_token_id=tokenizer.eos_token_id
+        )
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return jsonify({"reply": response})
     except torch.cuda.OutOfMemoryError:
-        print("ERROR: CUDA Out Of Memory")
-        return jsonify({"reply": "The server ran out of memory. Try again in a bit."}), 500
+        print("ERROR: CUDA OOM")
+        return jsonify({"reply": "GPU memory ran out. Try again later."}), 500
     except Exception as e:
-        print("ERROR during generation:", e)
-        return jsonify({"reply": "Something went wrong during response generation."}), 500
+        print(f"Generation error: {e}")
+        return jsonify({"reply": "Something went wrong."}), 500
 
 if __name__ == "__main__":
-    # Initial attempt to load the primary model
     load_model(MODEL_PRIMARY)
-
-    # Start background retry thread
     threading.Thread(target=background_model_reload, daemon=True).start()
-
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
