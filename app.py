@@ -6,9 +6,9 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Use HuggingFaceH4/zephyr-7b-alpha as the model
+# Use GPT-2 as the model
 HF_API_KEY = os.getenv("HF_API_KEY")
-API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-alpha"
+API_URL = "https://api-inference.huggingface.co/models/gpt2"
 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 def query(payload):
