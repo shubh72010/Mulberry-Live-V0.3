@@ -9,15 +9,19 @@ import torch
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-MODEL_NAME = "microsoft/phi-3-mini-4k-instruct"
+# Set model names
+MODEL_PRIMARY = "distilbert-base-uncased"  # DistilBERT
+MODEL_FALLBACK = "meta-llama/Llama-2-7b-chat-hf"  # TinyLlama
+
+# Set HuggingFace token
 HF_TOKEN = os.getenv("HF_API_KEY")
-RETRY_INTERVAL = 300  # seconds (5 minutes)
+RETRY_INTERVAL = 120  # seconds (2 minutes)
 
 model = None
 tokenizer = None
 model_loaded = False
 
-def load_model():
+def load_model(model_name):
     global model, tokenizer, model_loaded
     if not HF_TOKEN:
         print("ERROR: HF_API_KEY environment variable is not set.")
@@ -25,18 +29,18 @@ def load_model():
         return
 
     try:
-        print("Loading model...")
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=HF_TOKEN)
+        print(f"Loading model: {model_name}...")
+        tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
         model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
+            model_name,
             token=HF_TOKEN,
             torch_dtype=torch.float16,
             device_map="auto"
         )
         model_loaded = True
-        print("Model loaded successfully.")
+        print(f"Model {model_name} loaded successfully.")
     except Exception as e:
-        print("Model load failed:", str(e))
+        print(f"Model load failed for {model_name}: {str(e)}")
         model_loaded = False
 
 # Background thread to auto-retry model load every X seconds
@@ -44,7 +48,10 @@ def background_model_reload():
     while True:
         if not model_loaded:
             print("Retrying model load...")
-            load_model()
+            load_model(MODEL_PRIMARY)  # Try to load the primary model
+            if not model_loaded:
+                print("Switching to fallback model...")
+                load_model(MODEL_FALLBACK)  # Fallback to a heavier model
         time.sleep(RETRY_INTERVAL)
 
 @app.route("/")
@@ -73,8 +80,8 @@ def chat():
         return jsonify({"reply": "Something went wrong during response generation."}), 500
 
 if __name__ == "__main__":
-    # Initial attempt to load model
-    load_model()
+    # Initial attempt to load the primary model
+    load_model(MODEL_PRIMARY)
 
     # Start background retry thread
     threading.Thread(target=background_model_reload, daemon=True).start()
