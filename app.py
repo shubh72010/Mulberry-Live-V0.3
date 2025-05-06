@@ -1,23 +1,15 @@
 import os
-import requests
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Use distilgpt2 model (smaller version of GPT-2)
-HF_API_KEY = os.getenv("HF_API_KEY")
-API_URL = "https://api-inference.huggingface.co/models/distilgpt2"  # Updated model
-headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-
-def query(payload):
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Request failed: {str(e)}"}
+# Load DialoGPT model and tokenizer from Hugging Face
+tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
+model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
 @app.route("/")
 def home():
@@ -29,20 +21,20 @@ def chat():
     if not user_input:
         return jsonify({"reply": "No input provided."})
 
-    result = query({
-        "inputs": user_input,
-        "parameters": {"max_new_tokens": 100}
-    })
+    # Encode the new user input, add the eos_token and return a tensor in Pytorch
+    new_user_input_ids = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors='pt')
 
-    # Check if the response contains an error
-    if isinstance(result, dict) and result.get("error"):
-        return jsonify({"reply": f"HF API error: {result['error']}"})
+    # Append the new user input tokens to the chat history
+    chat_history_ids = new_user_input_ids
 
-    # Ensure that the response is in the expected format
-    if isinstance(result, list) and result:
-        return jsonify({"reply": result[0].get("generated_text", "No response from AI")})
-    else:
-        return jsonify({"reply": "Error: Invalid response from Hugging Face API"})
+    # Generate a response from the model
+    bot_output = model.generate(chat_history_ids, max_length=1000, pad_token_id=tokenizer.eos_token_id)
+
+    # Get the model's response, decode it, and add it to the chat history
+    bot_output_text = tokenizer.decode(bot_output[:, chat_history_ids.shape[-1]:][0], skip_special_tokens=True)
+
+    # Return the bot's response
+    return jsonify({"reply": bot_output_text})
 
 if __name__ == "__main__":
     app.run(debug=True)
