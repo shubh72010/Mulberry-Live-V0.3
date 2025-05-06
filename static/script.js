@@ -28,8 +28,10 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({ message })
     });
 
+    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+
     const data = await response.json();
-    const reply = data.response || "No response.";
+    const reply = data.reply || "No response.";  // Fixed key here
     addMessage(reply, "ai");
 
     // Text-to-speech
