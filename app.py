@@ -5,13 +5,15 @@ from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+import signal
+import sys
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
 # Set model names
 MODEL_PRIMARY = "distilbert-base-uncased"  # DistilBERT
-MODEL_FALLBACK = "meta-llama/Llama-2-7b-chat-hf"  # TinyLlama
+MODEL_FALLBACK = "meta-llama/Llama-2-7b-chat-hf"  # LLaMA 2-7B
 
 # Set HuggingFace token
 HF_TOKEN = os.getenv("HF_API_KEY")
@@ -20,9 +22,10 @@ RETRY_INTERVAL = 120  # seconds (2 minutes)
 model = None
 tokenizer = None
 model_loaded = False
+current_model = None
 
 def load_model(model_name):
-    global model, tokenizer, model_loaded
+    global model, tokenizer, model_loaded, current_model
     if not HF_TOKEN:
         print("ERROR: HF_API_KEY environment variable is not set.")
         model_loaded = False
@@ -38,12 +41,12 @@ def load_model(model_name):
             device_map="auto"
         )
         model_loaded = True
+        current_model = model_name
         print(f"Model {model_name} loaded successfully.")
     except Exception as e:
         print(f"Model load failed for {model_name}: {str(e)}")
         model_loaded = False
 
-# Background thread to auto-retry model load every X seconds
 def background_model_reload():
     while True:
         if not model_loaded:
@@ -53,6 +56,14 @@ def background_model_reload():
                 print("Switching to fallback model...")
                 load_model(MODEL_FALLBACK)  # Fallback to a heavier model
         time.sleep(RETRY_INTERVAL)
+
+# Graceful shutdown handler
+def signal_handler(sig, frame):
+    print("Shutting down gracefully...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 @app.route("/")
 def home():
