@@ -3,19 +3,20 @@ import requests
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
-# No need for load_dotenv, Render provides environment variables directly
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Retrieve the Hugging Face API key from Render's environment variables
+# Render will inject this from its env vars
 HF_API_KEY = os.getenv("HF_API_KEY")
-API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"
+
+# Microsoft Phi model endpoint
+API_URL = "https://api-inference.huggingface.co/models/microsoft/phi-1_5"
 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 def query(payload):
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
+        response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         return {"error": f"Request failed: {str(e)}"}
@@ -35,11 +36,9 @@ def chat():
         "parameters": {"max_new_tokens": 100}
     })
 
-    # Check if the response contains an error
     if isinstance(result, dict) and result.get("error"):
         return jsonify({"reply": f"HF API error: {result['error']}"})
 
-    # Ensure that the response is in the expected format
     if isinstance(result, list) and result:
         return jsonify({"reply": result[0].get("generated_text", "No response from AI")})
     else:
