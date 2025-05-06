@@ -1,4 +1,4 @@
-import os
+Import os
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -7,9 +7,9 @@ import torch
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Load a small but functional model
-tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
-model = AutoModelForCausalLM.from_pretrained("distilgpt2")
+# Load a smaller and more efficient model: Microsoft Phi-3-mini
+tokenizer = AutoTokenizer.from_pretrained("microsoft/phi-3-mini-4k-instruct")
+model = AutoModelForCausalLM.from_pretrained("microsoft/phi-3-mini-4k-instruct", torch_dtype=torch.float16, device_map="auto")
 
 @app.route("/")
 def home():
@@ -22,9 +22,9 @@ def chat():
         return jsonify({"reply": "No input provided."})
 
     try:
-        inputs = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors="pt")
+        inputs = tokenizer.encode(user_input, return_tensors="pt").to(model.device)
         outputs = model.generate(inputs, max_length=100, pad_token_id=tokenizer.eos_token_id)
-        response = tokenizer.decode(outputs[:, inputs.shape[-1]:][0], skip_special_tokens=True)
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return jsonify({"reply": response})
     except Exception as e:
         print("ERROR:", e)
