@@ -6,17 +6,15 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Render will inject this from its env vars
+# Use HuggingFaceH4/zephyr-7b-alpha as the model
 HF_API_KEY = os.getenv("HF_API_KEY")
-
-# Microsoft Phi model endpoint
-API_URL = "https://api-inference.huggingface.co/models/microsoft/phi-1_5"
+API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-alpha"
 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 def query(payload):
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
+        response.raise_for_status()  # Raises an HTTPError for bad responses
         return response.json()
     except requests.exceptions.RequestException as e:
         return {"error": f"Request failed: {str(e)}"}
@@ -36,9 +34,11 @@ def chat():
         "parameters": {"max_new_tokens": 100}
     })
 
+    # Check if the response contains an error
     if isinstance(result, dict) and result.get("error"):
         return jsonify({"reply": f"HF API error: {result['error']}"})
 
+    # Ensure that the response is in the expected format
     if isinstance(result, list) and result:
         return jsonify({"reply": result[0].get("generated_text", "No response from AI")})
     else:
