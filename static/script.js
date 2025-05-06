@@ -2,6 +2,7 @@ const form = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
 const chatBox = document.getElementById("chat-box");
 const typingIndicator = document.getElementById("typing-indicator");
+const micBtn = document.getElementById("mic-btn");
 
 function addMessage(message, className) {
   const div = document.createElement("div");
@@ -28,10 +29,10 @@ form.addEventListener("submit", async (e) => {
     });
 
     const data = await response.json();
-    const reply = data.reply || "No response.";
+    const reply = data.response || "No response.";
     addMessage(reply, "ai");
 
-    // Optional: Text-to-speech
+    // Text-to-speech
     const speech = new SpeechSynthesisUtterance(reply);
     speech.lang = "en-US";
     window.speechSynthesis.speak(speech);
@@ -43,3 +44,34 @@ form.addEventListener("submit", async (e) => {
     typingIndicator.style.display = "none";
   }
 });
+
+// Speech-to-text (Mic input)
+if ("webkitSpeechRecognition" in window) {
+  const recognition = new webkitSpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  micBtn.addEventListener("click", () => {
+    recognition.start();
+    micBtn.classList.add("listening");
+  });
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    userInput.value = transcript;
+    micBtn.classList.remove("listening");
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
+    micBtn.classList.remove("listening");
+  };
+
+  recognition.onend = () => {
+    micBtn.classList.remove("listening");
+  };
+} else {
+  micBtn.disabled = true;
+  micBtn.title = "Speech recognition not supported in this browser.";
+}
