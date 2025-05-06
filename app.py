@@ -9,7 +9,7 @@ CORS(app)
 
 # Retrieve the Hugging Face API key from Render's environment variables
 HF_API_KEY = os.getenv("HF_API_KEY")
-API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-1.3B"
+API_URL = "https://huggingface.co/EleutherAI/gpt-neo-1.3B"
 headers = {"Authorization": f"Bearer {HF_API_KEY}"}
 
 def query(payload):
