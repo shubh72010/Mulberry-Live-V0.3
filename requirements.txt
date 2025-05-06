@@ -3,3 +3,5 @@ requests
 flask-cors
 gunicorn
 python-dotenv
+transformers
+torch
