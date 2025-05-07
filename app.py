@@ -3,58 +3,59 @@ import time
 import threading
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
+import requests
 import signal
 import sys
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Models
-MODEL_PRIMARY = "deepseek-ai/deepseek-coder-6.7b-instruct"
-MODEL_FALLBACK = "mistralai/Mistral-7B-Instruct-v0.2"
-
-HF_TOKEN = os.getenv("HF_API_KEY")
+# Google Cloud Gemini API key from environment variables
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 RETRY_INTERVAL = 120  # Retry every 2 minutes
 
-model = None
-tokenizer = None
+# Flag to check model status
 model_loaded = False
-current_model = None
 
-def load_model(model_name):
-    global model, tokenizer, model_loaded, current_model
-
-    if not HF_TOKEN:
-        print("ERROR: Hugging Face token not set in env.")
-        model_loaded = False
-        return
+def generate_content(user_input):
+    # Check if the API key is available
+    if not GEMINI_API_KEY:
+        print("ERROR: Google Cloud API key not set in env.")
+        return "API key not found. Please set your key in the environment variables."
 
     try:
-        print(f"Loading model: {model_name}...")
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=HF_TOKEN)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            token=HF_TOKEN,
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto"
-        )
-        model_loaded = True
-        current_model = model_name
-        print(f"Model {model_name} loaded successfully.")
+        # Define the Gemini API URL for content generation
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "contents": [{
+                "parts": [{"text": user_input}]
+            }]
+        }
+
+        # Make the POST request to the Google Gemini API
+        response = requests.post(url, headers=headers, params={"key": GEMINI_API_KEY}, json=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("generated_content", "No content generated.")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
+            return "Something went wrong with the API request."
+
     except Exception as e:
-        print(f"Failed to load {model_name}: {e}")
-        model_loaded = False
+        print(f"Error during content generation: {e}")
+        return "An error occurred while generating the response."
 
 def background_model_reload():
     while True:
         if not model_loaded:
             print("Retrying model load...")
-            load_model(MODEL_PRIMARY)
-            if not model_loaded:
-                print("Falling back to backup model...")
-                load_model(MODEL_FALLBACK)
+            # Optionally retry content generation or API initialization logic here
         time.sleep(RETRY_INTERVAL)
 
 # Graceful shutdown
@@ -75,29 +76,13 @@ def chat():
     if not user_input:
         return jsonify({"reply": "Please enter a message."})
 
-    if not model_loaded:
-        return jsonify({"reply": "Model is loading or unavailable. Try again soon."})
-
     try:
-        inputs = tokenizer(user_input, return_tensors="pt").to(model.device)
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=256,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-            pad_token_id=tokenizer.eos_token_id
-        )
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        response = generate_content(user_input)
         return jsonify({"reply": response})
-    except torch.cuda.OutOfMemoryError:
-        print("ERROR: CUDA OOM")
-        return jsonify({"reply": "GPU memory ran out. Try again later."}), 500
     except Exception as e:
-        print(f"Generation error: {e}")
+        print(f"Error: {e}")
         return jsonify({"reply": "Something went wrong."}), 500
 
 if __name__ == "__main__":
-    load_model(MODEL_PRIMARY)
     threading.Thread(target=background_model_reload, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
