@@ -1,51 +1,45 @@
 import os
 import time
 import threading
+import requests
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-import requests
 import signal
 import sys
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-# Google Cloud Gemini API key from environment variables
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Models and API Key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # Ensure this is set in your environment
 RETRY_INTERVAL = 120  # Retry every 2 minutes
 
-# Flag to check model status
 model_loaded = False
 
 def generate_content(user_input):
-    # Check if the API key is available
     if not GEMINI_API_KEY:
         print("ERROR: Google Cloud API key not set in env.")
         return "API key not found. Please set your key in the environment variables."
 
     try:
-        # Define the Gemini API URL for content generation
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-        
-        headers = {
-            "Content-Type": "application/json"
-        }
-        
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+        headers = { "Content-Type": "application/json" }
         data = {
             "contents": [{
-                "parts": [{"text": user_input}]
+                "parts": [{ "text": user_input }]
             }]
         }
 
-        # Make the POST request to the Google Gemini API
         response = requests.post(url, headers=headers, params={"key": GEMINI_API_KEY}, json=data)
-
+        
         if response.status_code == 200:
             result = response.json()
-            return result.get("generated_content", "No content generated.")
+            # Safely extract the response text from the JSON
+            text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            return text if text else "No response from AI."
         else:
             print(f"Error: {response.status_code} - {response.text}")
-            return "Something went wrong with the API request."
+            return "Error talking to AI."
 
     except Exception as e:
         print(f"Error during content generation: {e}")
@@ -55,7 +49,7 @@ def background_model_reload():
     while True:
         if not model_loaded:
             print("Retrying model load...")
-            # Optionally retry content generation or API initialization logic here
+            model_loaded = True  # For now, set to True immediately to skip background model loading
         time.sleep(RETRY_INTERVAL)
 
 # Graceful shutdown
@@ -76,11 +70,15 @@ def chat():
     if not user_input:
         return jsonify({"reply": "Please enter a message."})
 
+    if not model_loaded:
+        return jsonify({"reply": "Model is loading or unavailable. Try again soon."})
+
     try:
-        response = generate_content(user_input)
-        return jsonify({"reply": response})
+        # Call the Gemini API with the user's message
+        response_text = generate_content(user_input)
+        return jsonify({"reply": response_text})
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during chat generation: {e}")
         return jsonify({"reply": "Something went wrong."}), 500
 
 if __name__ == "__main__":
