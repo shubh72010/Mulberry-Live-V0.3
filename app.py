@@ -1,9 +1,15 @@
 import os
+import logging
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import google.generativeai as genai
 from google.api_core.exceptions import GoogleAPIError, InvalidArgument
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize Flask
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
@@ -25,31 +31,38 @@ def chat():
     user_input = request.json.get("message", "").strip()
 
     if not user_input:
+        logger.warning("Empty message received.")
         return jsonify({"reply": "Please enter a message."})
 
     try:
+        logger.info(f"User input: {user_input}")
         response = model.generate_content(user_input)
-        reply = response.text.strip() if response.text else "No content generated."
+        reply = getattr(response, "text", "").strip()
+        if not reply:
+            logger.warning("No content returned by Gemini.")
+            reply = "The AI didn’t return anything useful. Try again."
         return jsonify({"reply": reply})
 
     except InvalidArgument as e:
-        print(f"Invalid input: {e}")
+        logger.error(f"Invalid input: {e}")
         return jsonify({"reply": "Invalid request format or content. Try rephrasing."}), 400
 
     except GoogleAPIError as e:
+        logger.error(f"Google API error: {e}")
         if "403" in str(e):
-            print("API key unauthorized or quota exceeded.")
             return jsonify({"reply": "API access denied. Check your key or quota."}), 403
         elif "429" in str(e):
-            print("Rate limit hit.")
             return jsonify({"reply": "Rate limit hit. Please slow down."}), 429
         else:
-            print(f"Google API error: {e}")
             return jsonify({"reply": "AI service error. Try again shortly."}), 502
 
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logger.exception("Unexpected error:")
         return jsonify({"reply": "Unexpected error occurred. Try again later."}), 500
+
+@app.route("/health")
+def health():
+    return "ok", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
